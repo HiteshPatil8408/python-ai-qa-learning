@@ -115,6 +115,15 @@ function renderSidebar() {
   LESSONS.forEach((lesson) => {
     const li = document.createElement("li");
     li.className = "lesson-item" + (lesson.id === progress.currentLesson ? " current" : "");
+    li.tabIndex = 0;
+    li.setAttribute("role", "button");
+    if (lesson.id === progress.currentLesson) li.setAttribute("aria-current", "step");
+    li.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        goToLesson(lesson.id);
+      }
+    });
 
     let mark = "";
     if (progress.completed.includes(lesson.id)) mark = "\u2713";
@@ -144,6 +153,8 @@ function renderSidebar() {
   const percent = computeProgressPercent();
   document.getElementById("progress-percent").textContent = percent + "%";
   document.getElementById("progress-bar-fill").style.width = percent + "%";
+  document.getElementById("mobile-lesson-status").textContent =
+    `Lesson ${progress.currentLesson} of ${TOTAL_LESSONS} · ${percent}% complete`;
 }
 
 // ---------- Lesson rendering ----------
@@ -152,6 +163,8 @@ function goToLesson(id) {
   progress.currentLesson = id;
   saveProgress();
   renderAll();
+  setLessonMenu(false);
+  window.scrollTo({ top: 0, behavior: "instant" });
 }
 
 function renderAll() {
@@ -220,7 +233,16 @@ function renderLesson(id) {
     <h3>Task</h3>
     <div class="card">
       <div class="section">${escapeHtml(c.exercise.instructions)}</div>
-      <textarea id="code-editor" class="code-editor" spellcheck="false">${escapeHtml(savedCode)}</textarea>
+      <label class="editor-label" for="code-editor">Your Python code</label>
+      <textarea id="code-editor" class="code-editor" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off">${escapeHtml(savedCode)}</textarea>
+      <div id="editor-tools" class="editor-tools" role="group" aria-label="Code editing shortcuts">
+        <button type="button" class="btn" data-insert="    " aria-label="Insert four spaces">Indent</button>
+        <button type="button" class="btn" data-insert="(" aria-label="Insert opening parenthesis">(</button>
+        <button type="button" class="btn" data-insert=")" aria-label="Insert closing parenthesis">)</button>
+        <button type="button" class="btn" data-insert=":" aria-label="Insert colon">:</button>
+        <button type="button" class="btn" data-insert="&quot;" aria-label="Insert double quote">&quot;</button>
+        <button type="button" class="btn" data-insert="=" aria-label="Insert equals sign">=</button>
+      </div>
       <div class="btn-row">
         <button id="run-code-btn" class="btn btn-primary">Run Code</button>
         <button id="check-answer-btn" class="btn">Check Answer</button>
@@ -282,6 +304,21 @@ function wireLessonEvents(lesson) {
 
   if (c.exercise) {
     const editor = document.getElementById("code-editor");
+    function insertCode(text) {
+      editor.setRangeText(text, editor.selectionStart, editor.selectionEnd, "end");
+      editor.focus({ preventScroll: true });
+      editor.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    document.getElementById("editor-tools").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-insert]");
+      if (button) insertCode(button.dataset.insert);
+    });
+    editor.addEventListener("keydown", (event) => {
+      if (event.key === "Tab" && !event.shiftKey) {
+        event.preventDefault();
+        insertCode("    ");
+      }
+    });
     editor.addEventListener("input", () => {
       progress.code[lesson.id] = editor.value;
       saveProgress();
@@ -436,6 +473,23 @@ function resetProgressHandler() {
 }
 
 // ---------- Init ----------
+
+function setLessonMenu(open) {
+  document.getElementById("lesson-sidebar").classList.toggle("menu-open", open);
+  const button = document.getElementById("lesson-menu-btn");
+  button.setAttribute("aria-expanded", String(open));
+  button.textContent = open ? "Close lessons" : "Lessons";
+}
+
+document.getElementById("lesson-menu-btn").addEventListener("click", () => {
+  setLessonMenu(document.getElementById("lesson-menu-btn").getAttribute("aria-expanded") !== "true");
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && document.getElementById("lesson-menu-btn").getAttribute("aria-expanded") === "true") {
+    setLessonMenu(false);
+    document.getElementById("lesson-menu-btn").focus();
+  }
+});
 
 document.getElementById("prev-lesson-btn").addEventListener("click", goPrev);
 document.getElementById("next-lesson-btn").addEventListener("click", goNext);
