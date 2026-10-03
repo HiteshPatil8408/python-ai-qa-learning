@@ -14,12 +14,41 @@ python-ai-qa-learning/
   styles.css   - all styling
   app.js       - state, Pyodide integration, rendering logic
   lessons.js   - all lesson content (titles, explanations, exercises)
+  advanced-lessons.js - intermediate/advanced lessons, behavior checks and labs
+  interviews.js - interview questions, answer rubrics and follow-ups
+  tests/       - curriculum checks and offline browser smoke test
   README.md    - this file
 ```
 
-All 33 lessons are fully built, from Variables and Data Types through CI/CD -
+The course has 49 lessons. The original 33 cover Variables and Data Types through CI/CD -
 covering core Python, pytest, HTTP/API handling, and AI-specific topics like
 LLM APIs, AI agents, DeepEval, agent evaluation and evaluation datasets.
+
+Lessons 34–40 form the **Intermediate** section: dependency injection and mocks,
+structured output contracts, bounded retries, property/metamorphic testing,
+dataset leakage, retrieval precision/recall, and grounding/abstention.
+
+Lessons 41–49 form the **Advanced** section: judge calibration, repeated trials and
+Wilson intervals, tool authorization, prompt injection, privacy-safe artifacts,
+tail latency, trace diagnosis, multi-metric release gates, and an audit-ready capstone.
+
+Each new lesson includes a worked example, runnable standard-library exercise,
+assertion-based behavior checks, hints, a common mistake, a deeper local lab and
+links to official documentation. The browser simulations do not run real DeepEval,
+Ragas, pytest, Hypothesis or provider APIs. The local labs explain how to practice
+with real tools; provider-backed evaluation may require credentials and incur costs.
+
+Use the **Interviews** button for a separate bank of 32 questions. Filter by topic,
+level or practice status, search, choose a random question, reveal an answer rubric
+and practice a follow-up. Review status is saved locally and separate from course
+completion. A 30-minute mock interview guide is included.
+
+Existing lesson IDs and saved code are preserved. Course progress is now measured
+against 49 lessons, so an existing completion percentage may decrease.
+
+On phones, use **Lessons** to open the course menu. Coding shortcuts insert spaces
+and common Python symbols. The reading and interview sections remain available
+while Python downloads or when the runtime cannot load.
 
 ## Running locally
 
@@ -64,8 +93,30 @@ Everything is stored under the `pythonAIQAProgress` key in `localStorage`:
   "completed": [1, 2],
   "skipped": [],
   "solutionsRevealed": [],
+  "interviewReviewed": [],
   "code": { "3": "..." }
 }
 ```
 
 Use the **Reset Progress** button in the sidebar to clear it (confirmation required).
+
+## Checking the curriculum
+
+```bash
+python -m unittest discover -s tests -v
+node --check app.js
+node --check advanced-lessons.js
+node --check interviews.js
+```
+
+The tests execute every new example and solution in a fresh namespace, verify
+behavior assertions and reject answers that only print the expected text.
+`tests/browser-smoke.html` runs a browser UI smoke test using a simulated unavailable
+Python runtime. Open it through your static server in a fresh browser profile; it
+prints PASS or FAIL at the bottom. It exercises navigation, mobile menu state,
+editor shortcuts, search/filters and saved interview progress. It does not test
+the Pyodide download or execute WebAssembly.
+
+Curriculum references checked on October 3, 2026: Python, pytest, Hypothesis, Ragas,
+DeepEval and OWASP official documentation. Follow each lesson's source links when
+implementing local labs, since package APIs can change.

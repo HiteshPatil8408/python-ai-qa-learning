@@ -5,6 +5,8 @@ const TOTAL_LESSONS = LESSONS.length;
 
 let pyodide = null;
 let pyodideReady = false;
+let pythonRunning = false;
+let currentView = "course";
 
 let progress = loadProgress();
 
@@ -14,6 +16,7 @@ function defaultProgress() {
     completed: [],
     skipped: [],
     solutionsRevealed: [],
+    interviewReviewed: [],
     code: {}
   };
 }
@@ -42,23 +45,33 @@ async function initPyodide() {
   document.getElementById("app").classList.remove("hidden");
 }
 
-async function runPython(code) {
+async function runPython(code, validationCode = "") {
   if (!pyodideReady) {
     return { success: false, output: "", error: "Python is still loading. Please wait." };
   }
+  if (pythonRunning) return { success: false, output: "", error: "Another run is in progress. Please wait." };
+  pythonRunning = true;
+  let namespace;
   try {
+    namespace = pyodide.runPython("dict()");
     await pyodide.runPythonAsync(
       "import sys, io\nsys.stdout = io.StringIO()\nsys.stderr = sys.stdout\n"
     );
-    await pyodide.runPythonAsync(code);
+    await pyodide.runPythonAsync(code, { globals: namespace });
+    if (validationCode) await pyodide.runPythonAsync(validationCode, { globals: namespace });
     const output = await pyodide.runPythonAsync("sys.stdout.getvalue()");
     return { success: true, output };
   } catch (e) {
     return { success: false, output: "", error: formatPyError(e) };
   } finally {
-    await pyodide.runPythonAsync(
-      "sys.stdout = sys.__stdout__\nsys.stderr = sys.__stderr__\n"
-    );
+    try {
+      await pyodide.runPythonAsync(
+        "sys.stdout = sys.__stdout__\nsys.stderr = sys.__stderr__\n"
+      );
+    } finally {
+      if (namespace) namespace.destroy();
+      pythonRunning = false;
+    }
   }
 }
 
@@ -112,7 +125,16 @@ function renderSidebar() {
   const list = document.getElementById("lesson-list");
   list.innerHTML = "";
 
+  let lastTrack;
   LESSONS.forEach((lesson) => {
+    const track = lesson.track || "Foundations";
+    if (track !== lastTrack) {
+      const heading = document.createElement("li");
+      heading.className = "track-heading";
+      heading.textContent = track;
+      list.appendChild(heading);
+      lastTrack = track;
+    }
     const li = document.createElement("li");
     li.className = "lesson-item" + (lesson.id === progress.currentLesson ? " current" : "");
     li.tabIndex = 0;
@@ -160,6 +182,7 @@ function renderSidebar() {
 // ---------- Lesson rendering ----------
 
 function goToLesson(id) {
+  setView("course");
   progress.currentLesson = id;
   saveProgress();
   renderAll();
@@ -191,22 +214,26 @@ function renderLesson(id) {
 
   container.innerHTML = `
     <h2>${lesson.title}</h2>
+    ${lesson.track ? `<span class="level-tag">${lesson.track} · Lesson ${lesson.id}</span>
+    <h3>Learning Goals</h3><ul>${c.goals.map(goal => `<li>${escapeHtml(goal)}</li>`).join("")}</ul>` : ""}
 
     <h3>Why You Need This</h3>
     <div class="card">${escapeHtml(c.why)}</div>
 
-    <h3>TypeScript vs Python</h3>
+    <h3>${c.typescriptExample ? "TypeScript vs Python" : "Worked Python Example"}</h3>
     <div class="compare-grid">
+      ${c.typescriptExample ? `
       <div class="compare-col">
         <h4>TypeScript</h4>
         <pre>${escapeHtml(c.typescriptExample)}</pre>
-      </div>
+      </div>` : ""}
       <div class="compare-col">
         <h4>Python</h4>
         <pre>${escapeHtml(c.pythonExample)}</pre>
       </div>
     </div>
     <div class="card section" style="margin-top:12px;">${escapeHtml(c.explanation)}</div>
+    ${c.pitfall ? `<div class="card pitfall"><strong>Common mistake</strong><p>${escapeHtml(c.pitfall)}</p></div>` : ""}
 
     <h3>Try It</h3>
     <div class="card">
@@ -262,6 +289,8 @@ function renderLesson(id) {
       <button id="mark-complete-btn" class="btn btn-primary">Mark Lesson Complete</button>
     </div>
     `}
+    ${c.lab ? `<h3>Real-World Lab · Run Locally</h3><div class="card"><p>${escapeHtml(c.lab)}</p><p class="study-note">Browser exercises are offline simulations. These labs require a local Python project; live service tests may need credentials and a budget.</p></div>` : ""}
+    ${c.sources ? `<h3>Official Documentation</h3><ul class="source-list">${c.sources.map(source => `<li><a href="${source.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)}</a></li>`).join("")}</ul>` : ""}
   `;
 
   wireLessonEvents(lesson);
@@ -341,7 +370,7 @@ function wireLessonEvents(lesson) {
       const bannerEl = document.getElementById("result-banner");
       outEl.textContent = "Running...";
       outEl.classList.remove("error");
-      const result = await runPython(editor.value);
+      const result = await runPython(editor.value, c.exercise.validationCode || "");
       renderOutput(outEl, result, editor.value);
 
       if (!result.success) {
@@ -357,7 +386,7 @@ function wireLessonEvents(lesson) {
           progress.completed.push(lesson.id);
         }
         saveProgress();
-        bannerEl.innerHTML = `<div class="result-banner correct">&#10003; Correct! Nice work. You can continue.</div>`;
+        bannerEl.innerHTML = `<div class="result-banner correct">&#10003; ${c.exercise.validationCode ? "Output and behavior checks passed." : "Correct! Nice work."} You can continue.</div>`;
         renderSidebar();
         updateNavButtons();
       } else {
@@ -470,9 +499,104 @@ function resetProgressHandler() {
   localStorage.removeItem(STORAGE_KEY);
   progress = defaultProgress();
   renderAll();
+  if (currentView === "interviews") renderInterviews();
+}
+
+// ---------- Interview practice ----------
+
+function setView(view) {
+  currentView = view;
+  const interviews = view === "interviews";
+  document.getElementById("lesson-container").classList.toggle("hidden", interviews);
+  document.querySelector(".lesson-nav").classList.toggle("hidden", interviews);
+  document.getElementById("interview-container").classList.toggle("hidden", !interviews);
+  for (const name of ["course", "interview"]) {
+    const button = document.getElementById(`${name}-view-btn`);
+    const active = (name === "interview") === interviews;
+    button.classList.toggle("btn-primary", active);
+    button.setAttribute("aria-pressed", String(active));
+  }
+  if (interviews) renderInterviews();
+  else document.getElementById("mobile-lesson-status").textContent =
+    `Lesson ${progress.currentLesson} of ${TOTAL_LESSONS} · ${computeProgressPercent()}% complete`;
+  setLessonMenu(false);
+}
+
+function renderInterviews() {
+  const container = document.getElementById("interview-container");
+  const categories = [...new Set(INTERVIEW_QUESTIONS.map(question => question.category))];
+  container.innerHTML = `
+    <h2>AI Tester Interview Practice</h2>
+    <p>Practice ${INTERVIEW_QUESTIONS.length} intermediate and advanced questions. Answer aloud before revealing the answer rubric, then tackle the follow-up. Explain your approach, tradeoffs and evidence.</p>
+    <div class="card interview-filters">
+      <label>Search questions<input id="interview-search" type="search" placeholder="Try RAG, retries or security"></label>
+      <label>Topic<select id="interview-topic"><option value="">All topics</option>${categories.map(category => `<option>${escapeHtml(category)}</option>`).join("")}</select></label>
+      <label>Level<select id="interview-level"><option value="">All levels</option><option>Intermediate</option><option>Advanced</option></select></label>
+      <label>Practice status<select id="interview-status"><option value="">All questions</option><option value="new">Not reviewed</option><option value="reviewed">Reviewed</option></select></label>
+      <button id="random-question-btn" class="btn">Random question</button>
+    </div>
+    <p id="interview-count" class="study-note" aria-live="polite"></p>
+    <div id="interview-list"></div>
+    <p id="interview-empty" class="hidden">No matching questions. Try another filter.</p>
+    <h3>Mock Interview · 30 Minutes</h3>
+    <div class="card"><p>Spend 5 minutes explaining your capstone, 10 minutes on evaluation and RAG, 10 minutes on an agent security scenario, and 5 minutes on tradeoffs.</p><p>Score each answer from 0 to 3: 0 = missing, 1 = names concepts, 2 = gives a practical test strategy, 3 = includes edge cases, evidence and limitations. Review weak topics using the course lessons. Reviewed status records practice, not mastery.</p></div>
+  `;
+  const list = document.getElementById("interview-list");
+  for (const question of INTERVIEW_QUESTIONS) {
+    const article = document.createElement("article");
+    article.className = "card interview-card";
+    article.dataset.questionId = question.id;
+    article.innerHTML = `
+      <span class="level-tag">${escapeHtml(question.category)} · ${question.level}</span>
+      <h3 tabindex="-1">${question.id}. ${escapeHtml(question.question)}</h3>
+      <details><summary>Reveal answer rubric</summary><p>${escapeHtml(question.answer)}</p><p><strong>Follow-up:</strong> ${escapeHtml(question.followUp)}</p></details>
+      <label class="review-toggle"><input type="checkbox" ${progress.interviewReviewed.includes(question.id) ? "checked" : ""}> I practiced this question</label>`;
+    article.querySelector("input").addEventListener("change", (event) => {
+      progress.interviewReviewed = progress.interviewReviewed.filter(id => id !== question.id);
+      if (event.target.checked) progress.interviewReviewed.push(question.id);
+      saveProgress();
+      filterInterviews();
+    });
+    list.appendChild(article);
+  }
+  for (const id of ["interview-search", "interview-topic", "interview-level", "interview-status"]) {
+    document.getElementById(id).addEventListener("input", filterInterviews);
+  }
+  document.getElementById("random-question-btn").addEventListener("click", () => {
+    const visible = [...list.querySelectorAll("article:not(.hidden)")];
+    if (!visible.length) return;
+    const card = visible[Math.floor(Math.random() * visible.length)];
+    card.querySelector("details").open = false;
+    card.scrollIntoView({ block: "start" });
+    card.querySelector("h3").focus({ preventScroll: true });
+  });
+  filterInterviews();
+}
+
+function filterInterviews() {
+  const search = document.getElementById("interview-search").value.trim().toLowerCase();
+  const topic = document.getElementById("interview-topic").value;
+  const level = document.getElementById("interview-level").value;
+  const status = document.getElementById("interview-status").value;
+  let count = 0;
+  for (const question of INTERVIEW_QUESTIONS) {
+    const reviewed = progress.interviewReviewed.includes(question.id);
+    const matches = (!topic || question.category === topic) && (!level || question.level === level)
+      && (!search || `${question.question} ${question.category} ${question.answer}`.toLowerCase().includes(search))
+      && (!status || (status === "reviewed" ? reviewed : !reviewed));
+    document.querySelector(`[data-question-id="${question.id}"]`).classList.toggle("hidden", !matches);
+    if (matches) count++;
+  }
+  document.getElementById("interview-count").textContent = `${count} questions shown · ${progress.interviewReviewed.length} of ${INTERVIEW_QUESTIONS.length} practiced`;
+  document.getElementById("interview-empty").classList.toggle("hidden", count > 0);
+  document.getElementById("random-question-btn").disabled = count === 0;
+  document.getElementById("mobile-lesson-status").textContent = `Interview practice · ${progress.interviewReviewed.length}/${INTERVIEW_QUESTIONS.length} reviewed`;
 }
 
 // ---------- Init ----------
+
+document.getElementById("course-view-btn").addEventListener("click", () => setView("course"));
+document.getElementById("interview-view-btn").addEventListener("click", () => setView("interviews"));
 
 function setLessonMenu(open) {
   document.getElementById("lesson-sidebar").classList.toggle("menu-open", open);
@@ -496,6 +620,11 @@ document.getElementById("next-lesson-btn").addEventListener("click", goNext);
 document.getElementById("reset-progress-btn").addEventListener("click", resetProgressHandler);
 
 (async function start() {
-  await initPyodide();
+  document.getElementById("app").classList.remove("hidden");
   renderAll();
+  try {
+    await initPyodide();
+  } catch (error) {
+    document.getElementById("pyodide-loading").textContent = "Python could not load. You can still study and practice interviews. Reload to retry the Python download.";
+  }
 })();

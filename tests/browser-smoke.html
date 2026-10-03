@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python for AI QA</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+
+  <div id="pyodide-loading" class="loading-banner">
+    Loading Python...
+  </div>
+
+  <div id="app" class="app hidden">
+    <header class="mobile-header">
+      <strong>Python for AI QA</strong>
+      <button id="lesson-menu-btn" class="btn" aria-expanded="false" aria-controls="lesson-sidebar">Lessons</button>
+      <span id="mobile-lesson-status" class="mobile-lesson-status"></span>
+    </header>
+
+    <aside id="lesson-sidebar" class="sidebar">
+      <h1 class="sidebar-title">Python for AI QA</h1>
+      <div class="course-tabs" role="group" aria-label="Study section">
+        <button id="course-view-btn" class="btn btn-primary" aria-pressed="true">Course</button>
+        <button id="interview-view-btn" class="btn" aria-pressed="false">Interviews</button>
+      </div>
+
+      <div class="progress-block">
+        <div class="progress-label">
+          <span>Progress:</span>
+          <span id="progress-percent">0%</span>
+        </div>
+        <div class="progress-bar-track">
+          <div id="progress-bar-fill" class="progress-bar-fill"></div>
+        </div>
+      </div>
+
+      <nav aria-label="Lessons">
+        <ul id="lesson-list" class="lesson-list"></ul>
+      </nav>
+
+      <button id="reset-progress-btn" class="btn btn-danger btn-block">Reset Progress</button>
+    </aside>
+
+    <main class="content">
+      <div id="lesson-container" class="lesson-container"></div>
+      <section id="interview-container" class="hidden" aria-label="Interview practice"></section>
+
+      <div class="lesson-nav">
+        <button id="prev-lesson-btn" class="btn">&larr; Previous Lesson</button>
+        <button id="next-lesson-btn" class="btn">Next Lesson &rarr;</button>
+      </div>
+    </main>
+
+  </div>
+
+  <script>window.originalSmokeProgress = localStorage.getItem("pythonAIQAProgress"); localStorage.removeItem("pythonAIQAProgress"); window.loadPyodide = () => Promise.reject(new Error("Offline smoke test"));</script>
+  <script src="../lessons.js"></script>
+  <script src="../advanced-lessons.js"></script>
+  <script src="../interviews.js"></script>
+  <script src="../app.js"></script>
+<script>
+setTimeout(() => {
+  const results = [];
+  const check = (name, condition) => { if (!condition) throw new Error(name); results.push(name); };
+  try {
+    check('49 lessons rendered', document.querySelectorAll('.lesson-item').length === 49);
+    check('Three course tracks', document.querySelectorAll('.track-heading').length === 3);
+    check('Offline study available', !document.getElementById('app').classList.contains('hidden'));
+    document.getElementById('lesson-menu-btn').click();
+    check('Mobile menu opens', document.getElementById('lesson-sidebar').classList.contains('menu-open'));
+    document.querySelectorAll('.lesson-item')[33].click();
+    check('Advanced lesson navigation', document.querySelector('#lesson-container h2').textContent.includes('Dependency'));
+    check('Menu closes after selection', !document.getElementById('lesson-sidebar').classList.contains('menu-open'));
+    check('Local lab visible', document.getElementById('lesson-container').textContent.includes('Real-World Lab'));
+    const editor = document.getElementById('code-editor');
+    editor.selectionStart = editor.selectionEnd = 0;
+    document.querySelector('[data-insert="    "]').click();
+    check('Indent inserts spaces', editor.value.startsWith('    '));
+    check('Edited code persists', JSON.parse(localStorage.getItem('pythonAIQAProgress')).code['34'].startsWith('    '));
+    document.getElementById('interview-view-btn').click();
+    check('32 interview cards', document.querySelectorAll('.interview-card').length === 32);
+    check('Lesson navigation hidden for interviews', document.querySelector('.lesson-nav').classList.contains('hidden'));
+    const topic = document.getElementById('interview-topic');
+    topic.value = 'RAG'; topic.dispatchEvent(new Event('input'));
+    check('Topic filter', document.querySelectorAll('.interview-card:not(.hidden)').length === 5);
+    document.querySelector('.interview-card:not(.hidden) input').click();
+    check('Interview progress saved', JSON.parse(localStorage.getItem('pythonAIQAProgress')).interviewReviewed.length === 1);
+    const status = document.getElementById('interview-status');
+    status.value = 'reviewed'; status.dispatchEvent(new Event('input'));
+    check('Review filter', document.querySelectorAll('.interview-card:not(.hidden)').length === 1);
+    const search = document.getElementById('interview-search');
+    search.value = 'zzzznonexistent'; search.dispatchEvent(new Event('input'));
+    check('Empty search handled', !document.getElementById('interview-empty').classList.contains('hidden'));
+    check('Random disabled with no matches', document.getElementById('random-question-btn').disabled);
+    search.value = ''; search.dispatchEvent(new Event('input'));
+    document.getElementById('random-question-btn').click();
+    check('Random focuses question', document.activeElement.tagName === 'H3');
+    document.getElementById('course-view-btn').click();
+    check('Course restored', !document.getElementById('lesson-container').classList.contains('hidden'));
+    check('No mobile page overflow', document.documentElement.scrollWidth <= window.innerWidth);
+    const report = document.createElement('pre'); report.id = 'smoke-result'; report.textContent = 'PASS: ' + results.join(' | '); document.body.appendChild(report);
+  } catch (error) {
+    const report = document.createElement('pre'); report.id = 'smoke-result'; report.textContent = 'FAIL: ' + error.stack; document.body.appendChild(report);
+  } finally {
+    if (window.originalSmokeProgress === null) localStorage.removeItem('pythonAIQAProgress');
+    else localStorage.setItem('pythonAIQAProgress', window.originalSmokeProgress);
+  }
+}, 200);
+</script></body>
+</html>
