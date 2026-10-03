@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python for AI QA</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div id="pyodide-loading" class="loading-banner">
+    Loading Python...
+  </div>
+
+  <div id="app" class="app hidden">
+
+    <aside class="sidebar">
+      <h1 class="sidebar-title">Python for AI QA</h1>
+
+      <div class="progress-block">
+        <div class="progress-label">
+          <span>Progress:</span>
+          <span id="progress-percent">0%</span>
+        </div>
+        <div class="progress-bar-track">
+          <div id="progress-bar-fill" class="progress-bar-fill"></div>
+        </div>
+      </div>
+
+      <nav>
+        <ul id="lesson-list" class="lesson-list"></ul>
+      </nav>
+
+      <button id="reset-progress-btn" class="btn btn-danger btn-block">Reset Progress</button>
+    </aside>
+
+    <main class="content">
+      <div id="lesson-container" class="lesson-container"></div>
+
+      <div class="lesson-nav">
+        <button id="prev-lesson-btn" class="btn">&larr; Previous Lesson</button>
+        <button id="next-lesson-btn" class="btn">Next Lesson &rarr;</button>
+      </div>
+    </main>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+  <script src="lessons.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
