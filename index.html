@@ -13,8 +13,13 @@
   </div>
 
   <div id="app" class="app hidden">
+    <header class="mobile-header">
+      <strong>Python for AI QA</strong>
+      <button id="lesson-menu-btn" class="btn" aria-expanded="false" aria-controls="lesson-sidebar">Lessons</button>
+      <span id="mobile-lesson-status" class="mobile-lesson-status"></span>
+    </header>
 
-    <aside class="sidebar">
+    <aside id="lesson-sidebar" class="sidebar">
       <h1 class="sidebar-title">Python for AI QA</h1>
 
       <div class="progress-block">
@@ -27,7 +32,7 @@
         </div>
       </div>
 
-      <nav>
+      <nav aria-label="Lessons">
         <ul id="lesson-list" class="lesson-list"></ul>
       </nav>
 
